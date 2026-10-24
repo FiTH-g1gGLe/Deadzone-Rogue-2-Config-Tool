@@ -1,0 +1,59 @@
+# Publishes a downloadable release automatically whenever a new version of the tool is pushed.
+# The version comes from $ToolVersion in Deadzone-Config-Tool.ps1 - bump it and push, that's it.
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Deadzone-Config-Tool.ps1'
+      - '.github/workflows/release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read version
+        id: ver
+        run: |
+          v=$(grep -oP "^\\\$ToolVersion\s*=\s*'\K[^']+" Deadzone-Config-Tool.ps1 | head -1)
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          if git ls-remote --exit-code --tags origin "refs/tags/v$v" >/dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"; echo "v$v is already released - nothing to do."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"; echo "Releasing v$v"
+          fi
+
+      - name: Build download zip
+        if: steps.ver.outputs.exists == 'false'
+        run: |
+          mkdir -p "dist/Deadzone Performance Tool/assets"
+          cp Deadzone-Config-Tool.ps1 "Run Deadzone Config Tool.bat" README.md "dist/Deadzone Performance Tool/"
+          cp assets/logo.png assets/game.png "dist/Deadzone Performance Tool/assets/"
+          cd dist && zip -r Deadzone-Rogue-2-Performance-Tool.zip "Deadzone Performance Tool"
+
+      - name: Publish release
+        if: steps.ver.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: g1gGLe'z Deadzone: Rogue 2 Performance Tool v${{ steps.ver.outputs.version }}
+          files: dist/Deadzone-Rogue-2-Performance-Tool.zip
+          make_latest: true
+          generate_release_notes: true
+          body: |
+            ## Download
+            Grab **Deadzone-Rogue-2-Performance-Tool.zip** below, unzip it anywhere, and double-click **Run Deadzone Config Tool.bat**.
+
+            Launch Deadzone: Rogue 2 once first (open Settings and press Apply) so it creates its settings file, then close it before applying.
+
+            Join the squad: [Discord](https://discord.gg/Br7z7zBvFb) · [YouTube](https://www.youtube.com/user/FiTHGAMINGOFFICIAL) · [fithgaming.co.uk](http://fithgaming.co.uk/)
